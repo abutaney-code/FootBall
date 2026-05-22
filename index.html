@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Retro Football: Team Edition</title>
+    <title>Retro Football: Ultimate Edition</title>
     <style>
         body {
             margin: 0; padding: 0;
@@ -11,181 +11,192 @@
             height: 100vh; color: white;
             font-family: 'Courier New', sans-serif; overflow: hidden;
         }
-        canvas {
-            border: 4px solid #fff;
-            background-color: #4a8f30;
-            display: none; /* Hidden until team is chosen */
-        }
-        #menu {
+        #setup-screen {
             text-align: center;
             background: #333;
-            padding: 20px;
-            border: 3px solid #fff;
-            max-width: 600px;
+            padding: 30px;
+            border: 4px solid #fff;
+            max-width: 700px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
         }
-        .team-grid {
+        .section-label { margin-top: 20px; font-weight: bold; color: #aaa; text-transform: uppercase; }
+        .grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 20px;
+            gap: 8px; margin-top: 10px;
         }
-        .team-btn {
-            background: #444;
-            color: white;
-            border: 1px solid #777;
-            padding: 8px;
-            cursor: pointer;
-            font-size: 10px;
-            transition: 0.2s;
+        .difficulty-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px; margin-top: 10px;
         }
-        .team-btn:hover { background: #666; border-color: #fff; }
-        #ui {
-            position: absolute; top: 20px; text-align: center;
-            width: 100%; pointer-events: none; display: none;
+        button {
+            background: #444; color: white; border: 1px solid #777;
+            padding: 10px; cursor: pointer; transition: 0.2s; font-family: 'Courier New';
         }
+        button:hover { background: #666; border-color: #fff; }
+        button.selected { background: #fff; color: #000; font-weight: bold; }
+        
+        #start-btn {
+            margin-top: 30px; padding: 15px 40px; font-size: 20px;
+            background: #4a8f30; border-color: #fff; width: 100%;
+        }
+
+        canvas { border: 4px solid #fff; background-color: #4a8f30; display: none; }
+        #ui { position: absolute; top: 20px; text-align: center; width: 100%; pointer-events: none; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="menu">
-        <h1>SELECT YOUR TEAM</h1>
-        <div class="team-grid" id="teamGrid"></div>
+    <div id="setup-screen">
+        <h1 style="margin-top:0">RETRO FOOTBALL</h1>
+        
+        <div class="section-label">1. Choose Difficulty</div>
+        <div class="difficulty-grid">
+            <button onclick="setDiff(3, this)">EASY</button>
+            <button onclick="setDiff(5, this)" class="selected">MEDIUM</button>
+            <button onclick="setDiff(8, this)">HARD</button>
+        </div>
+
+        <div class="section-label">2. Select Your Team</div>
+        <div class="grid" id="teamGrid"></div>
+
+        <button id="start-btn" onclick="initGame()">START GAME</button>
     </div>
 
     <div id="ui">
         <h2 id="teamNameDisplay">TEAM</h2>
-        <div id="phaseIndicator">OFFENSE: RUN!</div>
+        <div id="phaseIndicator" style="font-weight: bold; padding: 5px; background: rgba(0,0,0,0.5); display: inline-block;">OFFENSE</div>
         <h3 id="scoreDisplay">Score: 0</h3>
     </div>
 
     <canvas id="gameCanvas" width="800" height="400"></canvas>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const menu = document.getElementById('menu');
-        const ui = document.getElementById('ui');
-
-        // --- Team Data ---
         const teams = [
-            { name: "Buffalo Bills", color: "#00338D" }, { name: "Miami Dolphins", color: "#008E97" },
-            { name: "New England Patriots", color: "#002244" }, { name: "New York Jets", color: "#125740" },
-            { name: "Baltimore Ravens", color: "#241773" }, { name: "Cincinnati Bengals", color: "#FB4F14" },
-            { name: "Cleveland Browns", color: "#311D00" }, { name: "Pittsburgh Steelers", color: "#FFB612" },
-            { name: "Houston Texans", color: "#03202F" }, { name: "Indianapolis Colts", color: "#002C5F" },
-            { name: "Jacksonville Jaguars", color: "#006778" }, { name: "Tennessee Titans", color: "#4B92DB" },
-            { name: "Denver Broncos", color: "#FB4F14" }, { name: "Kansas City Chiefs", color: "#E31837" },
-            { name: "Las Vegas Raiders", color: "#A5ACAF" }, { name: "Los Angeles Chargers", color: "#0080C6" }
+            { name: "Bills", color: "#00338D" }, { name: "Dolphins", color: "#008E97" },
+            { name: "Patriots", color: "#002244" }, { name: "Jets", color: "#125740" },
+            { name: "Ravens", color: "#241773" }, { name: "Bengals", color: "#FB4F14" },
+            { name: "Browns", color: "#311D00" }, { name: "Steelers", color: "#FFB612" },
+            { name: "Texans", color: "#03202F" }, { name: "Colts", color: "#002C5F" },
+            { name: "Jaguars", color: "#006778" }, { name: "Titans", color: "#4B92DB" },
+            { name: "Broncos", color: "#FB4F14" }, { name: "Chiefs", color: "#E31837" },
+            { name: "Raiders", color: "#A5ACAF" }, { name: "Chargers", color: "#0080C6" }
         ];
 
         let selectedTeam = teams[0];
+        let baseSpeed = 5;
 
-        // Create Buttons
+        // Setup UI
         const grid = document.getElementById('teamGrid');
         teams.forEach(team => {
             let btn = document.createElement('button');
-            btn.className = 'team-btn';
             btn.innerText = team.name;
-            btn.onclick = () => startGame(team);
+            btn.onclick = () => {
+                document.querySelectorAll('.grid button').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                selectedTeam = team;
+            };
             grid.appendChild(btn);
         });
 
+        function setDiff(speed, btn) {
+            baseSpeed = speed;
+            document.querySelectorAll('.difficulty-grid button').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
         // --- Game Logic ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
         let score = 0, gameActive = false, isOffense = true;
-        let levelSpeed = 4, progressCounter = 0;
-        const DISTANCE_TO_TD = 500;
-        
-        const player = { x: 50, y: 200, width: 30, height: 30, speed: 5 };
-        let defenders = [];
-        let cpuRunner = { active: false, x: 0, y: 0, width: 30, height: 30 };
-        let yardLines = [0, 150, 300, 450, 600, 750];
+        let progressCounter = 0;
+        const player = { x: 50, y: 200, width: 30, height: 30, speed: 6 };
+        let defenders = [], yardLines = [0, 150, 300, 450, 600, 750];
+        let cpuRunner = { active: false, x: 0, y: 0 };
 
         const keys = {};
         window.addEventListener('keydown', e => keys[e.code] = true);
         window.addEventListener('keyup', e => keys[e.code] = false);
 
-        function startGame(team) {
-            selectedTeam = team;
-            menu.style.display = 'none';
+        function initGame() {
+            document.getElementById('setup-screen').style.display = 'none';
             canvas.style.display = 'block';
-            ui.style.display = 'block';
-            document.getElementById('teamNameDisplay').innerText = team.name;
-            document.getElementById('teamNameDisplay').style.color = team.color;
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('teamNameDisplay').innerText = selectedTeam.name;
+            document.getElementById('teamNameDisplay').style.color = selectedTeam.color;
             gameActive = true;
             loop();
+        }
+
+        function switchMode(mode) {
+            isOffense = (mode === 'OFFENSE');
+            defenders = []; cpuRunner.active = false; progressCounter = 0;
+            const pi = document.getElementById('phaseIndicator');
+            pi.innerText = isOffense ? "OFFENSE: REACH THE ENDZONE" : "DEFENSE: TACKLE THE BLUE PLAYER";
+            pi.style.color = isOffense ? selectedTeam.color : "#ff4444";
         }
 
         function update() {
             if (!gameActive) return;
 
-            // Player Movement
             if (keys['ArrowUp'] || keys['KeyW']) player.y -= player.speed;
             if (keys['ArrowDown'] || keys['KeyS']) player.y += player.speed;
-            player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
+            player.y = Math.max(0, Math.min(canvas.height - 30, player.y));
 
-            // Scroll Field
-            yardLines = yardLines.map(x => (x - levelSpeed < -50) ? canvas.width : x - levelSpeed);
+            yardLines = yardLines.map(x => (x - baseSpeed < -50) ? canvas.width : x - baseSpeed);
 
             if (isOffense) {
                 progressCounter++;
-                if (progressCounter % 60 === 0 && progressCounter < DISTANCE_TO_TD) {
-                    defenders.push({ x: canvas.width, y: Math.random() * 370, width: 30, height: 30 });
+                if (progressCounter % (20 - Math.floor(baseSpeed)) === 0) {
+                    defenders.push({ x: canvas.width, y: Math.random() * 370, w: 30, h: 30 });
                 }
                 defenders.forEach((d, i) => {
-                    d.x -= levelSpeed;
-                    if (checkCollision(player, d)) gameActive = false;
+                    d.x -= (baseSpeed + 2);
+                    if (checkCollision(player, {x:d.x, y:d.y, width:d.w, height:d.h})) gameActive = false;
                 });
-                if (progressCounter >= DISTANCE_TO_TD) {
+                if (progressCounter > 400) {
                     score++;
                     document.getElementById('scoreDisplay').innerText = "Score: " + score;
                     switchMode('DEFENSE');
                 }
             } else {
                 if (!cpuRunner.active) { cpuRunner.active = true; cpuRunner.x = canvas.width; cpuRunner.y = 200; }
-                cpuRunner.x -= (levelSpeed * 0.8);
-                cpuRunner.y += (player.y > cpuRunner.y) ? 2 : -2; // CPU Dodges
-                if (checkCollision(player, cpuRunner)) switchMode('OFFENSE');
+                cpuRunner.x -= (baseSpeed + 1);
+                cpuRunner.y += (player.y > cpuRunner.y) ? (baseSpeed/2) : -(baseSpeed/2);
+                if (checkCollision(player, {x:cpuRunner.x, y:cpuRunner.y, width:30, height:30})) switchMode('OFFENSE');
                 if (cpuRunner.x < 0) gameActive = false;
             }
         }
 
         function draw() {
             ctx.fillStyle = '#4a8f30'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
             yardLines.forEach(x => ctx.fillRect(x, 0, 5, canvas.height));
 
-            // Draw Player (Team Color)
+            // Draw Player
             ctx.fillStyle = isOffense ? selectedTeam.color : "#d32f2f";
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-            ctx.fillStyle = "silver"; ctx.fillRect(player.x + (isOffense?20:0), player.y+5, 10, 20);
+            ctx.fillRect(player.x, player.y, 30, 30);
+            ctx.fillStyle = "silver"; ctx.fillRect(player.x + (isOffense?20:0), player.y+5, 8, 20);
 
             if (isOffense) {
                 ctx.fillStyle = "#d32f2f";
-                defenders.forEach(d => ctx.fillRect(d.x, d.y, d.width, d.height));
-            } else if (cpuRunner.active) {
-                ctx.fillStyle = "#fff"; // Opponent Runner
-                ctx.fillRect(cpuRunner.x, cpuRunner.y, cpuRunner.width, cpuRunner.height);
+                defenders.forEach(d => ctx.fillRect(d.x, d.y, 30, 30));
+            } else {
+                ctx.fillStyle = "#00ccff";
+                ctx.fillRect(cpuRunner.x, cpuRunner.y, 30, 30);
             }
 
             if (!gameActive) {
                 ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.fillRect(0,0,800,400);
                 ctx.fillStyle = "white"; ctx.textAlign = "center";
                 ctx.font = "30px Courier"; ctx.fillText("GAME OVER", 400, 200);
-                ctx.fillText("Press SPACE to Restart", 400, 250);
+                ctx.fillText("Press SPACE to Restart", 400, 260);
             }
         }
 
-        function switchMode(mode) {
-            isOffense = (mode === 'OFFENSE');
-            defenders = []; cpuRunner.active = false; progressCounter = 0;
-            player.y = 200;
-            const pi = document.getElementById('phaseIndicator');
-            pi.innerText = isOffense ? "OFFENSE: RUN!" : "DEFENSE: TACKLE HIM!";
-            pi.style.color = isOffense ? selectedTeam.color : "red";
-        }
-
         function checkCollision(a, b) {
-            return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+            return a.x < b.x + b.width && a.x + 30 > b.x && a.y < b.y + b.height && a.y + 30 > b.y;
         }
 
         function loop() {
@@ -193,9 +204,7 @@
             if (gameActive) requestAnimationFrame(loop);
         }
 
-        window.addEventListener('keydown', e => {
-            if (!gameActive && e.code === 'Space') location.reload();
-        });
+        window.addEventListener('keydown', e => { if (!gameActive && e.code === 'Space') location.reload(); });
     </script>
 </body>
 </html>
